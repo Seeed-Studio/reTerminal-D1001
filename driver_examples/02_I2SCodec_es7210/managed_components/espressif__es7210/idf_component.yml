@@ -1,0 +1,10 @@
+dependencies:
+  idf:
+    version: '>=4.4,<6.0'
+description: ES7210 is a high performance four channels audio ADC
+repository: git://github.com/espressif/esp-bsp.git
+repository_info:
+  commit_sha: 4dabefca0599b2249d356cb6a08268dd5e56bbaf
+  path: components/es7210
+url: https://github.com/espressif/esp-bsp/tree/master/components/es7210
+version: 1.0.1~1
