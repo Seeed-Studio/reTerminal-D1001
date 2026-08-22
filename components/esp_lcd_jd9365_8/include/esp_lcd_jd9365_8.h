@@ -107,15 +107,20 @@ esp_err_t esp_lcd_new_panel_jd9365_8(const esp_lcd_panel_io_handle_t io, const e
  * @note  refresh_rate = (dpi_clock_freq_mhz * 1000000) / (h_res + hsync_pulse_width + hsync_back_porch + hsync_front_porch)
  *                                                      / (v_res + vsync_pulse_width + vsync_back_porch + vsync_front_porch)
  *
- * @param[in] px_format Pixel format of the panel
+ * @param[in] px_format Pixel format of the panel (`LCD_COLOR_FMT_RGB565`, ...; IDF v6 field names)
  *
+ * Patched for ESP-IDF v6.x (patches/0001): the IDF v5 fields
+ * `.pixel_format` / `.flags.use_dma2d` no longer exist; color formats are
+ * `in_color_format`/`out_color_format` and DMA2D is enabled at runtime with
+ * `esp_lcd_dpi_panel_enable_dma2d()`.
  */
 #define JD9365_8_800_1280_PANEL_60HZ_DPI_CONFIG(px_format) \
     {                                                    \
         .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,     \
         .dpi_clock_freq_mhz = 60,                        \
         .virtual_channel = 0,                            \
-        .pixel_format = px_format,                       \
+        .in_color_format = px_format,                    \
+        .out_color_format = px_format,                   \
         .num_fbs = 1,                                    \
         .video_timing = {                                \
             .h_size = 800,                               \
@@ -127,7 +132,6 @@ esp_err_t esp_lcd_new_panel_jd9365_8(const esp_lcd_panel_io_handle_t io, const e
             .vsync_pulse_width = 4,                      \
             .vsync_front_porch = 30,                     \
         },                                               \
-        .flags.use_dma2d = true,                         \
     }
 
 #endif
