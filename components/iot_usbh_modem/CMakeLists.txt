@@ -11,7 +11,7 @@ set(srcs "src/esp_modem.c"
 idf_component_register(SRCS "${srcs}"
                     INCLUDE_DIRS "include"
                     PRIV_INCLUDE_DIRS "private_include"
-                    REQUIRES driver esp_netif esp_wifi
+                    REQUIRES esp_driver_uart esp_driver_gpio esp_netif esp_wifi
                     PRIV_REQUIRES iot_usbh_cdc esp_event)
 
 include(package_manager)

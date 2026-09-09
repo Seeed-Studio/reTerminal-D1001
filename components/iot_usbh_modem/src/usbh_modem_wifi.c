@@ -92,7 +92,7 @@ esp_err_t modem_wifi_set(modem_wifi_config_t *config)
     if (config->mode & WIFI_MODE_STA) {
         strlcpy((char *)wifi_cfg.sta.ssid, config->ssid, sizeof(wifi_cfg.sta.ssid));
         strlcpy((char *)wifi_cfg.sta.password, config->password, sizeof(wifi_cfg.sta.password));
-        ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_cfg));
+        ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg));
 
         ESP_LOGI(TAG, "sta ssid: %s password: %s", config->ssid, config->password);
     }
@@ -104,8 +104,8 @@ esp_err_t modem_wifi_set(modem_wifi_config_t *config)
         strlcpy((char *)wifi_cfg.ap.ssid, config->ssid, sizeof(wifi_cfg.ap.ssid));
         strlcpy((char *)wifi_cfg.ap.password, config->password, sizeof(wifi_cfg.ap.password));
         wifi_cfg.ap.ssid_hidden = config->ssid_hidden;
-        ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &wifi_cfg));
-        ESP_ERROR_CHECK(esp_wifi_set_bandwidth(ESP_IF_WIFI_AP, config->bandwidth));
+        ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_cfg));
+        ESP_ERROR_CHECK(esp_wifi_set_bandwidth(WIFI_IF_AP, config->bandwidth));
         ESP_LOGI(TAG, "softap ssid: %s password: %s", config->ssid, config->password);
         if (config->dns[0]) {
             uint32_t ap_dns_addr = inet_addr(config->dns);
