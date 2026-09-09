@@ -35,11 +35,11 @@
 #define TEST_MIPI_DSI_LANE_NUM (2)
 
 #if TEST_LCD_BIT_PER_PIXEL == 24
-#define TEST_MIPI_DPI_PX_FORMAT (LCD_COLOR_PIXEL_FORMAT_RGB888)
+#define TEST_MIPI_DPI_PX_FORMAT (LCD_COLOR_FMT_RGB888)
 #elif TEST_LCD_BIT_PER_PIXEL == 18
-#define TEST_MIPI_DPI_PX_FORMAT (LCD_COLOR_PIXEL_FORMAT_RGB666)
+#error IDF v6 no longer supports RGB666 format
 #elif TEST_LCD_BIT_PER_PIXEL == 16
-#define TEST_MIPI_DPI_PX_FORMAT (LCD_COLOR_PIXEL_FORMAT_RGB565)
+#define TEST_MIPI_DPI_PX_FORMAT (LCD_COLOR_FMT_RGB565)
 #endif
 
 #define TEST_DELAY_TIME_MS (3000)
@@ -112,6 +112,7 @@ static void test_init_lcd(void)
         .vendor_config = &vendor_config,
     };
     TEST_ESP_OK(esp_lcd_new_panel_jd9365_8(mipi_dbi_io, &panel_config, &panel_handle));
+    TEST_ESP_OK(esp_lcd_dpi_panel_enable_dma2d(panel_handle));
     TEST_ESP_OK(esp_lcd_panel_reset(panel_handle));
     TEST_ESP_OK(esp_lcd_panel_init(panel_handle));
     TEST_ESP_OK(esp_lcd_panel_disp_on_off(panel_handle, true));

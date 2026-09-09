@@ -1,4 +1,4 @@
-version: 1.0.0
+version: 2.0.0
 
 description: Lcd driver for 8 inch display JD9365
 
@@ -9,4 +9,4 @@ dependencies:
   cmake_utilities:
     version: 0.*
   idf:
-    version: '>=5.3'
+    version: '>=6.0'
