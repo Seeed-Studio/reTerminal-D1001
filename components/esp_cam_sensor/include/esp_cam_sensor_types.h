@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2023-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2023-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -8,6 +8,7 @@
 
 #include <stdint.h>
 #include "esp_sccb_intf.h"
+#include "driver/gpio.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,7 +24,11 @@ extern "C" {
 
 typedef enum {
     ESP_CAM_SENSOR_PIXFORMAT_RGB565 = 1,
+    ESP_CAM_SENSOR_PIXFORMAT_RGB565_LE = ESP_CAM_SENSOR_PIXFORMAT_RGB565,
+    ESP_CAM_SENSOR_PIXFORMAT_RGB565_BE,
     ESP_CAM_SENSOR_PIXFORMAT_YUV422,
+    ESP_CAM_SENSOR_PIXFORMAT_YUV422_UYVY = ESP_CAM_SENSOR_PIXFORMAT_YUV422,
+    ESP_CAM_SENSOR_PIXFORMAT_YUV422_YUYV,
     ESP_CAM_SENSOR_PIXFORMAT_YUV420,
     ESP_CAM_SENSOR_PIXFORMAT_RGB888,
     ESP_CAM_SENSOR_PIXFORMAT_RGB444,
@@ -35,7 +40,6 @@ typedef enum {
     ESP_CAM_SENSOR_PIXFORMAT_GRAYSCALE,
     ESP_CAM_SENSOR_PIXFORMAT_JPEG
 } esp_cam_sensor_output_format_t;
-
 
 typedef enum {
     ESP_CAM_SENSOR_DATA_SEQ_NONE = 0,
@@ -73,6 +77,7 @@ typedef enum {
 
 #define ESP_CAM_SENSOR_STATS_FLAG_WB_GAIN           (1 <<  0)
 #define ESP_CAM_SENSOR_STATS_FLAG_AGC_GAIN          (1 <<  1)
+#define ESP_CAM_SENSOR_STATS_FLAG_EXPOSURE          (1 <<  2)
 
 #define ESP_CAM_SENSOR_PARAM_TYPE_NUMBER            1
 #define ESP_CAM_SENSOR_PARAM_TYPE_BITMASK           2
@@ -294,6 +299,10 @@ typedef struct _cam_sensor_spi_frame_info_t {
     uint8_t line_header_size;             /*!< Length of the data in the line header(sync code + line info) */
 
     uint8_t drop_frame_count;             /*!< Drop frame count after start SPI sensor */
+
+    uint32_t high_level_active : 1;       /*!< CS/VSYNC high level active */
+    uint32_t data_order_lsb_first : 1;    /*!< Data order LSB first */
+    uint32_t reserved_bits : 30;          /*!< Reserved */
 } esp_cam_sensor_spi_frame_info;
 
 /**
@@ -301,6 +310,7 @@ typedef struct _cam_sensor_spi_frame_info_t {
  */
 typedef struct {
     uint8_t rx_lines;                                 /*!< Number of SPI lines used to RX data */
+    uint32_t pclk;                                    /*!< Sensor output data clock frequency, valid when value is larger than 0 */
     const esp_cam_sensor_spi_frame_info *frame_info;  /*!< Info of the transmitted frame */
 } esp_cam_sensor_spi_info_t;
 
@@ -317,6 +327,7 @@ typedef struct {
     int vts;               /*!< VTS = V_Size + V_Blank, also known as vmax */
     uint32_t exp_def;      /*!< Exposure default */
     uint32_t gain_def;     /*!< Gain default */
+    uint32_t tline_ns;     /*!< One line exposure time in ns */
     esp_cam_sensor_bayer_pattern_t bayer_type;
 } esp_cam_sensor_isp_info_v1_t;
 
@@ -376,9 +387,9 @@ typedef struct _esp_cam_sensor_ops esp_cam_sensor_ops_t;
 typedef struct {
     char *name;                                  /*!< String name of the sensor */
     esp_sccb_io_handle_t sccb_handle;            /*!< SCCB io handle that created by `sccb_new_i2c_io` */
-    int8_t  xclk_pin;                            /*!< Sensor clock input pin, set to -1 not used */
-    int8_t  reset_pin;                           /*!< Hardware reset pin, set to -1 if not used */
-    int8_t  pwdn_pin;                            /*!< Power down pin, set to -1 if not used */
+    gpio_num_t  xclk_pin;                        /*!< Sensor clock input pin, set to -1 not used */
+    gpio_num_t  reset_pin;                       /*!< Hardware reset pin, set to -1 if not used */
+    gpio_num_t  pwdn_pin;                        /*!< Power down pin, set to -1 if not used */
     esp_cam_sensor_port_t sensor_port;           /*!< Camera interface currently in use */
     const esp_cam_sensor_format_t *cur_format;   /*!< Current format */
     esp_cam_sensor_id_t id;                      /*!< Sensor ID. */
@@ -410,9 +421,9 @@ typedef struct _esp_cam_sensor_ops {
  */
 typedef struct {
     esp_sccb_io_handle_t sccb_handle;            /*!< the handle of the sccb bus bound to the sensor, returned by sccb_new_i2c_io */
-    int8_t  reset_pin;                           /*!< reset pin, set to -1 if not used */
-    int8_t  pwdn_pin;                            /*!< power down pin, set to -1 if not used */
-    int8_t  xclk_pin;                            /*!< xclk pin, set to -1 if not used*/
+    gpio_num_t  reset_pin;                       /*!< reset pin, set to -1 if not used */
+    gpio_num_t  pwdn_pin;                        /*!< power down pin, set to -1 if not used */
+    gpio_num_t  xclk_pin;                        /*!< xclk pin, set to -1 if not used*/
     int32_t xclk_freq_hz;                        /*!< xclk freq， invalid when xclk = -1 */
     esp_cam_sensor_port_t sensor_port;           /*!< camera interface currently in use， DVP or MIPI */
 } esp_cam_sensor_config_t;
@@ -435,7 +446,8 @@ typedef struct {
 typedef struct {
     uint32_t flags;
     uint32_t seq;
-    uint16_t agc_gain; /*!< AGC gain output to sensor */
+    uint32_t aec_exp;  /*!< AEC exposure output to sensor */
+    volatile float agc_gain; /*!< AGC gain output to sensor */
     union {
         struct {
             uint8_t red_avg;
@@ -450,9 +462,15 @@ typedef struct {
  * Group hold refers to the packing of a group of registers to be effective at a specific time within a frame.
  * When the exposure time and gain need to be updated at the same time,
  * the group hold can be used to ensure that all of them take effect at the same time.
+ *
+ * @note The camera sensor driver should first check if exposure_val is 0. If it is not 0, the
+ *       exposure value has been set by the user, and the driver should set this value directly
+ *       to the sensor. If exposure_val is 0, then exposure_us should be used to calculate the
+ *       exposure value, which the driver then sets to the sensor.
  */
 typedef struct {
-    uint32_t exposure_us; /*!< Exposure time in us */
+    uint32_t exposure_us; /*!< Exposure time in us, 0 if not used */
+    uint32_t exposure_val; /*!< Exposure value, 0 if not used */
     uint32_t gain_index;  /*!< the index of gain map table */
 } esp_cam_sensor_gh_exp_gain_t;
 

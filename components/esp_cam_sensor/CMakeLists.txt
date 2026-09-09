@@ -1,4 +1,4 @@
-set(srcs "src/esp_cam_sensor.c" "src/esp_cam_sensor_xclk.c" "src/esp_cam_motor.c")
+set(srcs "src/esp_cam_sensor.c" "src/esp_cam_sensor_xclk.c" "src/esp_cam_motor.c" "src/esp_cam_sensor_detect.c")
 
 # SPI-interface camera sources are excluded: they carry a fork of IDF's
 # internal SPI slave driver that does not build against IDF v6.1

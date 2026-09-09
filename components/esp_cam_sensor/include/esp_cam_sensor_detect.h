@@ -45,6 +45,14 @@ extern esp_cam_sensor_detect_fn_t __esp_cam_sensor_detect_fn_array_start;
  */
 extern esp_cam_sensor_detect_fn_t __esp_cam_sensor_detect_fn_array_end;
 
+/**
+ * @brief Get the array of camera sensor detect functions.
+ *
+ * @param array_start_ptr Pointer to the start of the array.
+ * @param array_end_ptr Pointer to the end of the array.
+ */
+void esp_cam_sensor_detect_get_array(esp_cam_sensor_detect_fn_t **array_start_ptr, esp_cam_sensor_detect_fn_t **array_end_ptr);
+
 #ifdef __cplusplus
 }
 #endif
