@@ -9,7 +9,7 @@ The project provides basic SDK for the reTerminal D1001, as well as the examples
 ### Install ESP IDF
 
 Follow instructions in this guide [ESP-IDF - Get Started](https://docs.espressif.com/projects/esp-idf/en/latest/get-started/index.html) to setup the built toolchain. 
-Currently we're using the latest version `v5.4.2`.
+Currently we're using the latest version `v6.1`.
 
 ### Clone and Setup the Repository
 

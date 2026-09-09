@@ -1,4 +1,4 @@
-version: 0.0.1
+version: 0.1.0
 
 description: Board Support Package for ESP32-P4 reTerminalD1001 Board
 
@@ -7,13 +7,13 @@ targets:
 
 dependencies:
   idf:
-    version: '>=5.3.0'
+    version: '>=6.0'
 
   esp32_p4_re_terminal_d1001:
     path: ../esp32_p4_re_terminal_d1001
 
   chmorgan/esp-audio-player:
-    version: "1.0.*"
+    version: "2.0.*"
     public: true
 
   chmorgan/esp-file-iterator:

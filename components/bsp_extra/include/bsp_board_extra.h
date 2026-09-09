@@ -137,7 +137,7 @@ esp_err_t bsp_extra_i2s_read(void *audio_buffer, size_t len, size_t *bytes_read,
  *    - ESP_OK: Success
  *    - Others: Fail
  */
-esp_err_t bsp_extra_i2s_write(void *audio_buffer, size_t len, size_t *bytes_written, uint32_t timeout_ms);
+esp_err_t bsp_extra_i2s_write(const void *audio_buffer, size_t len, size_t *bytes_written, uint32_t timeout_ms);
 
 
 /**
