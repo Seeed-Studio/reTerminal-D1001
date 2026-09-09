@@ -1,14 +1,13 @@
 set(srcs "src/esp_cam_sensor.c" "src/esp_cam_sensor_xclk.c" "src/esp_cam_motor.c")
 
-list(APPEND srcs "src/driver_cam/esp_cam_ctlr_spi_cam.c")
-
-if(CONFIG_SPIRAM)
-    list(APPEND srcs "src/driver_spi/spi_slave.c")
-endif()
+# SPI-interface camera sources are excluded: they carry a fork of IDF's
+# internal SPI slave driver that does not build against IDF v6.1
+# (spicommon_* API changes), and the D1001 camera is MIPI-CSI only.
+# (patches/0003)
 
 set(include_dirs "include")
-set(requires "driver" "esp_sccb_intf" "esp_driver_cam")
-set(priv_requires "esp_driver_gpio" "esp_timer")
+set(requires "esp_driver_gpio" "esp_driver_spi" "esp_sccb_intf" "esp_driver_cam")
+set(priv_requires "esp_driver_gpio" "esp_timer" "esp_pm" "esp_hw_support")
 
 if(CONFIG_CAMERA_XCLK_USE_LEDC)
     list(APPEND requires "esp_driver_ledc")
