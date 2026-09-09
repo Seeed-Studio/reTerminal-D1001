@@ -33,8 +33,8 @@
 #define BSP_LCD_BIGENDIAN           (0)
 /* LCD display color bits */
 #define BSP_LCD_BITS_PER_PIXEL      (16)
-/* LCD display color space */
-#define BSP_LCD_COLOR_SPACE         (ESP_LCD_COLOR_SPACE_RGB)
+/* LCD display RGB element order */
+#define BSP_LCD_COLOR_SPACE         (LCD_RGB_ELEMENT_ORDER_RGB)
 
 #if CONFIG_BSP_LCD_TYPE_1024_600
 /* LCD display definition 1024x600 */

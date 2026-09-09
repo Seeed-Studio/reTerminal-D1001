@@ -15,6 +15,6 @@ idf_component_register(
     SRCS ${SRCS}
     INCLUDE_DIRS "include"
     PRIV_INCLUDE_DIRS "priv_include"
-    REQUIRES driver
-    PRIV_REQUIRES esp_adc esp_lcd usb spiffs fatfs
+    REQUIRES esp_driver_gpio esp_driver_i2c esp_driver_i2s esp_driver_sdmmc
+    PRIV_REQUIRES esp_adc esp_lcd usb spiffs fatfs sdmmc esp_driver_ledc
 )
