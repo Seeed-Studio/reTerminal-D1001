@@ -1,19 +1,22 @@
 /*
- * SPDX-FileCopyrightText: 2021-2022 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: CC0-1.0
  */
 
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
 #include "sdkconfig.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "driver/i2s_std.h"
-#include "driver/i2c.h"
+#include "driver/i2c_master.h"
+#include "driver/gpio.h"
 #include "esp_system.h"
 #include "esp_check.h"
-#include "es8311.h"
+#include "esp_codec_dev_defaults.h"
+#include "esp_codec_dev.h"
 #include "example_config.h"
 
 static const char *TAG = "i2s_es8311";
@@ -21,95 +24,68 @@ static const char err_reason[][30] = {"input param is invalid",
                                       "operation timeout"
                                      };
 static i2s_chan_handle_t tx_handle = NULL;
-static i2s_chan_handle_t rx_handle = NULL;
+static i2c_master_bus_handle_t i2c_bus_handle = NULL;
 
 /* Import music file as buffer */
-#if CONFIG_EXAMPLE_MODE_MUSIC
 extern const uint8_t music_pcm_start[] asm("_binary_canon_pcm_start");
 extern const uint8_t music_pcm_end[]   asm("_binary_canon_pcm_end");
-#endif
 
-static esp_err_t pca9535_write_reg(uint8_t reg, uint8_t data)
+static esp_err_t pca9535_write_reg(i2c_master_dev_handle_t dev, uint8_t reg, uint8_t data)
 {
-    uint8_t write_buf[2] = {reg, data};
-    return i2c_master_write_to_device(1, PCA9535_I2C_ADDR, write_buf, sizeof(write_buf), 1000 / portTICK_PERIOD_MS);
+    const uint8_t write_buf[2] = {reg, data};
+    return i2c_master_transmit(dev, write_buf, sizeof(write_buf), 1000);
 }
 
-static void pca9535_init(void)
+/* Power up the audio path through the PCA9535 IO expander:
+ * P10 (PWR_HOLD) keeps the 3.3V rail on, P13 (POWER_AMP_EN) powers the amplifier */
+static esp_err_t board_power_init(void)
 {
-    int i2c_master_port = 1; // Use I2C_NUM_1
-    i2c_config_t conf = {
-        .mode = I2C_MODE_MASTER,
-        .sda_io_num = MISC_I2C_SDA,
-        .sda_pullup_en = GPIO_PULLUP_ENABLE,
-        .scl_io_num = MISC_I2C_SCL,
-        .scl_pullup_en = GPIO_PULLUP_ENABLE,
-        .master.clk_speed = 100000,
-    };
-    i2c_param_config(i2c_master_port, &conf);
-    i2c_driver_install(i2c_master_port, conf.mode, 0, 0, 0);
-
-    // Configure Port 0 and Port 1 as output mode (0 = output, 1 = input)
-    // 0x06: Configuration port 0
-    // 0x07: Configuration port 1
-    pca9535_write_reg(0x06, 0x00); 
-    pca9535_write_reg(0x07, 0x00); 
-
-    // Set P13 to HIGH, others default to LOW
-    // P13 corresponds to Port 1 bit 3, i.e., 1 << 3 = 0x08
-    // 0x02: Output port 0
-    // 0x03: Output port 1
-    pca9535_write_reg(0x02, 0x00); 
-    pca9535_write_reg(0x03, 0x08); 
-
-    ESP_LOGI(TAG, "PCA9535 initialized, P13 set to HIGH");
-}
-
-static esp_err_t es8311_codec_init(void)
-{
-    /* Initialize I2C peripheral */
-#if !defined(CONFIG_EXAMPLE_BSP)
-    const i2c_config_t es_i2c_cfg = {
+    /* The ES8311 codec and the PCA9535 IO expander share the same I2C bus */
+    const i2c_master_bus_config_t i2c_mst_cfg = {
+        .i2c_port = I2C_NUM,
         .sda_io_num = I2C_SDA_IO,
         .scl_io_num = I2C_SCL_IO,
-        .mode = I2C_MODE_MASTER,
-        .sda_pullup_en = GPIO_PULLUP_ENABLE,
-        .scl_pullup_en = GPIO_PULLUP_ENABLE,
-        .master.clk_speed = 100000,
+        .clk_source = I2C_CLK_SRC_DEFAULT,
+        .glitch_ignore_cnt = 7,
+        .flags.enable_internal_pullup = true,
     };
-    ESP_RETURN_ON_ERROR(i2c_param_config(I2C_NUM, &es_i2c_cfg), TAG, "config i2c failed");
-    ESP_RETURN_ON_ERROR(i2c_driver_install(I2C_NUM, I2C_MODE_MASTER,  0, 0, 0), TAG, "install i2c driver failed");
-#else
-    ESP_ERROR_CHECK(bsp_i2c_init());
-#endif
+    ESP_RETURN_ON_ERROR(i2c_new_master_bus(&i2c_mst_cfg, &i2c_bus_handle), TAG, "create i2c bus failed");
 
-    /* Initialize es8311 codec */
-    es8311_handle_t es_handle = es8311_create(I2C_NUM, ES8311_ADDRRES_0);
-    ESP_RETURN_ON_FALSE(es_handle, ESP_FAIL, TAG, "es8311 create failed");
-    const es8311_clock_config_t es_clk = {
-        .mclk_inverted = false,
-        .sclk_inverted = false,
-        .mclk_from_mclk_pin = true,
-        .mclk_frequency = EXAMPLE_MCLK_FREQ_HZ,
-        .sample_frequency = EXAMPLE_SAMPLE_RATE
+    i2c_master_dev_handle_t pca9535_dev = NULL;
+    const i2c_device_config_t pca9535_cfg = {
+        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+        .device_address = PCA9535_I2C_ADDR,
+        .scl_speed_hz = 100000,
     };
+    ESP_RETURN_ON_ERROR(i2c_master_bus_add_device(i2c_bus_handle, &pca9535_cfg, &pca9535_dev),
+                        TAG, "add pca9535 device failed");
 
-    ESP_ERROR_CHECK(es8311_init(es_handle, &es_clk, ES8311_RESOLUTION_16, ES8311_RESOLUTION_16));
-    ESP_RETURN_ON_ERROR(es8311_sample_frequency_config(es_handle, EXAMPLE_SAMPLE_RATE * EXAMPLE_MCLK_MULTIPLE, EXAMPLE_SAMPLE_RATE), TAG, "set es8311 sample frequency failed");
-    ESP_RETURN_ON_ERROR(es8311_voice_volume_set(es_handle, EXAMPLE_VOICE_VOLUME, NULL), TAG, "set es8311 volume failed");
-    ESP_RETURN_ON_ERROR(es8311_microphone_config(es_handle, false), TAG, "set es8311 microphone failed");
-#if CONFIG_EXAMPLE_MODE_ECHO
-    ESP_RETURN_ON_ERROR(es8311_microphone_gain_set(es_handle, EXAMPLE_MIC_GAIN), TAG, "set es8311 microphone gain failed");
-#endif
+    /* Configure both ports as outputs */
+    ESP_RETURN_ON_ERROR(pca9535_write_reg(pca9535_dev, 0x06, 0x00), TAG, "pca9535 config failed");
+    ESP_RETURN_ON_ERROR(pca9535_write_reg(pca9535_dev, 0x07, 0x00), TAG, "pca9535 config failed");
+    /* Set P10 (PWR_HOLD) and P13 (POWER_AMP_EN) to HIGH, others to LOW */
+    ESP_RETURN_ON_ERROR(pca9535_write_reg(pca9535_dev, 0x02, 0x00), TAG, "pca9535 output failed");
+    ESP_RETURN_ON_ERROR(pca9535_write_reg(pca9535_dev, 0x03, 0x09), TAG, "pca9535 output failed");
+
+    /* Wait for the power rails to settle */
+    vTaskDelay(pdMS_TO_TICKS(50));
+
+    ESP_LOGI(TAG, "PCA9535 initialized, P10(PWR_HOLD)/P13(POWER_AMP_EN) set to HIGH");
     return ESP_OK;
 }
 
 static esp_err_t i2s_driver_init(void)
 {
-#if !defined(CONFIG_EXAMPLE_BSP)
     i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM, I2S_ROLE_MASTER);
     chan_cfg.auto_clear = true; // Auto clear the legacy data in the DMA buffer
-    ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &tx_handle, &rx_handle));
+    ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &tx_handle, NULL));
+
+    /* Reduce signal overshoot, same as the factory firmware */
+    gpio_set_drive_capability(I2S_MCK_IO, GPIO_DRIVE_CAP_1);
+    gpio_set_drive_capability(I2S_BCK_IO, GPIO_DRIVE_CAP_1);
+    gpio_set_drive_capability(I2S_WS_IO, GPIO_DRIVE_CAP_1);
+    gpio_set_drive_capability(I2S_DO_IO, GPIO_DRIVE_CAP_1);
+
     i2s_std_config_t std_cfg = {
         .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(EXAMPLE_SAMPLE_RATE),
         .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
@@ -118,7 +94,7 @@ static esp_err_t i2s_driver_init(void)
             .bclk = I2S_BCK_IO,
             .ws = I2S_WS_IO,
             .dout = I2S_DO_IO,
-            .din = I2S_DI_IO,
+            .din = I2S_GPIO_UNUSED, // ES8311 ADC output is not connected on this board
             .invert_flags = {
                 .mclk_inv = false,
                 .bclk_inv = false,
@@ -126,23 +102,79 @@ static esp_err_t i2s_driver_init(void)
             },
         },
     };
-    std_cfg.clk_cfg.mclk_multiple = EXAMPLE_MCLK_MULTIPLE;
 
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle, &std_cfg));
-    ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle, &std_cfg));
     ESP_ERROR_CHECK(i2s_channel_enable(tx_handle));
-    ESP_ERROR_CHECK(i2s_channel_enable(rx_handle));
-#else
-    ESP_LOGI(TAG, "Using BSP for HW configuration");
-    i2s_std_config_t std_cfg = {
-        .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(EXAMPLE_SAMPLE_RATE),
-        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
-        .gpio_cfg = BSP_I2S_GPIO_CFG,
+    return ESP_OK;
+}
+
+static esp_err_t es8311_codec_init(void)
+{
+    /* Create control interface with the shared I2C bus handle */
+    audio_codec_i2c_cfg_t i2c_cfg = {
+        .port = I2C_NUM,
+        .addr = ES8311_CODEC_DEFAULT_ADDR,
+        .bus_handle = i2c_bus_handle,
     };
-    std_cfg.clk_cfg.mclk_multiple = EXAMPLE_MCLK_MULTIPLE;
-    ESP_ERROR_CHECK(bsp_audio_init(&std_cfg, &tx_handle, &rx_handle));
-    ESP_ERROR_CHECK(bsp_audio_poweramp_enable(true));
-#endif
+    const audio_codec_ctrl_if_t *ctrl_if = audio_codec_new_i2c_ctrl(&i2c_cfg);
+    assert(ctrl_if);
+
+    /* Create data interface with I2S bus handle */
+    audio_codec_i2s_cfg_t i2s_cfg = {
+        .port = I2S_NUM,
+        .rx_handle = NULL,
+        .tx_handle = tx_handle,
+    };
+    const audio_codec_data_if_t *data_if = audio_codec_new_i2s_data(&i2s_cfg);
+    assert(data_if);
+
+    /* Create ES8311 interface handle */
+    const audio_codec_gpio_if_t *gpio_if = audio_codec_new_gpio();
+    assert(gpio_if);
+    es8311_codec_cfg_t es8311_cfg = {
+        .ctrl_if = ctrl_if,
+        .gpio_if = gpio_if,
+        .codec_mode = ESP_CODEC_DEV_WORK_MODE_DAC,
+        .master_mode = false,
+        .use_mclk = true,
+        /* PA enable pin, driven high while playing (same as the factory firmware) */
+        .pa_pin = EXAMPLE_PA_CTRL_IO,
+        .pa_reverted = false,
+        .hw_gain = {
+            .pa_voltage = 5.0,
+            .codec_dac_voltage = 3.3,
+        },
+    };
+    const audio_codec_if_t *es8311_if = es8311_codec_new(&es8311_cfg);
+    assert(es8311_if);
+
+    /* Create the top codec handle with ES8311 interface handle and data interface */
+    esp_codec_dev_cfg_t dev_cfg = {
+        .dev_type = ESP_CODEC_DEV_TYPE_OUT,
+        .codec_if = es8311_if,
+        .data_if = data_if,
+    };
+    esp_codec_dev_handle_t codec_handle = esp_codec_dev_new(&dev_cfg);
+    assert(codec_handle);
+
+    /* Specify the sample configurations and open the device.
+     * This also configures the ES8311 clock and enables the power amplifier. */
+    esp_codec_dev_sample_info_t sample_cfg = {
+        .bits_per_sample = I2S_DATA_BIT_WIDTH_16BIT,
+        .channel = 2,
+        .channel_mask = 0x03,
+        .sample_rate = EXAMPLE_SAMPLE_RATE,
+    };
+    if (esp_codec_dev_open(codec_handle, &sample_cfg) != ESP_CODEC_DEV_OK) {
+        ESP_LOGE(TAG, "Open codec device failed");
+        return ESP_FAIL;
+    }
+
+    /* Set the initial volume */
+    if (esp_codec_dev_set_out_vol(codec_handle, EXAMPLE_VOICE_VOLUME) != ESP_CODEC_DEV_OK) {
+        ESP_LOGE(TAG, "set output volume failed");
+        return ESP_FAIL;
+    }
     return ESP_OK;
 }
 
@@ -161,7 +193,7 @@ static void i2s_music(void *args)
     /* Enable the TX channel */
     ESP_ERROR_CHECK(i2s_channel_enable(tx_handle));
     while (1) {
-        /* Write music to earphone */
+        /* Write music to the speaker */
         ret = i2s_channel_write(tx_handle, data_ptr, music_pcm_end - data_ptr, &bytes_write, portMAX_DELAY);
         if (ret != ESP_OK) {
             /* Since we set timeout to 'portMAX_DELAY' in 'i2s_channel_write'
@@ -182,28 +214,25 @@ static void i2s_music(void *args)
     vTaskDelete(NULL);
 }
 
-
-
-
-
 void app_main(void)
 {
-
-    // === Run PCA9535 I2C extension program ===
-    printf("PCA9535 Extension Test Start\n");
-    pca9535_init();
-
     printf("i2s es8311 codec example start\n-----------------------------\n");
-    // Initialize i2s peripheral
+
+    /* Power up the audio path first (3.3V rail hold + amplifier power) */
+    if (board_power_init() != ESP_OK) {
+        ESP_LOGE(TAG, "board power init failed");
+        abort();
+    }
+
+    /* Initialize i2s peripheral */
     if (i2s_driver_init() != ESP_OK) {
         ESP_LOGE(TAG, "i2s driver init failed");
         abort();
     } else {
         ESP_LOGI(TAG, "i2s driver init success");
     }
-    
 
-    // Initialize i2c peripheral and config es8311 codec by i2c
+    /* Configure es8311 codec (also enables the power amplifier) */
     if (es8311_codec_init() != ESP_OK) {
         ESP_LOGE(TAG, "es8311 codec init failed");
         abort();
@@ -211,8 +240,6 @@ void app_main(void)
         ESP_LOGI(TAG, "es8311 codec init success");
     }
 
-    // Play a piece of music in music mode
+    /* Play a piece of music */
     xTaskCreate(i2s_music, "i2s_music", 4096, NULL, 5, NULL);
-
-
 }
