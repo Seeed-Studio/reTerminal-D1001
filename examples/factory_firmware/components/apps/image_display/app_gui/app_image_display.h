@@ -1,5 +1,5 @@
 #ifndef __APP_IMAGE_DISPLAY_H
-#define __APP_IAMGE_DISPLAY_H
+#define __APP_IMAGE_DISPLAY_H
 
 #include "lvgl.h"
 #include "file_iterator.h"
