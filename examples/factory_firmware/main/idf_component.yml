@@ -7,7 +7,7 @@ dependencies:
     path: ../iot_usbh_modem
 
   espressif/esp_video:
-    version: 2.4.*
+    version: 2.3.*
   espressif/esp_wifi_remote:
     version: 1.*
 
