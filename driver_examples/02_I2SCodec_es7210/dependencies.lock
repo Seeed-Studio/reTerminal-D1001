@@ -1,32 +1,21 @@
 dependencies:
-  espressif/es7210:
-    component_hash: 761ac59d31d8babb01f6338045cc877f2a75027bae9823a4e4d0b6e5b6f63faf
+  espressif/esp_codec_dev:
+    component_hash: 4779f31a3ba3f9b38aee1afe6ccb9ba8f6108dc3a6e77d39d7d714e9a215371b
     dependencies:
     - name: idf
       require: private
-      version: '>=4.4,<6.0'
+      version: '>=4.0'
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 1.0.1~1
-  espressif/es8311:
-    component_hash: 46b3117250344bb03f143d5e2becf81cfb111679fbd7b95cefc2d302d36cc393
-    dependencies:
-    - name: idf
-      require: private
-      version: '>=4.4,<6.0'
-    source:
-      registry_url: https://components.espressif.com/
-      type: service
-    version: 1.0.0~1
+    version: 1.6.2
   idf:
     source:
       type: idf
-    version: 5.5.3
+    version: 6.1.0
 direct_dependencies:
-- espressif/es7210
-- espressif/es8311
+- espressif/esp_codec_dev
 - idf
-manifest_hash: cfd419dc9bb132988ac834c022e1bee53b6240189b27176720bd80b06d394adf
+manifest_hash: 842a0ff3448c0984c2c4c4bbb1e509c3c47600a50f07f22d0b0bd3c595d98e2d
 target: esp32p4
-version: 2.0.0
+version: 3.0.0
