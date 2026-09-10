@@ -201,7 +201,7 @@ esp_err_t bsp_extra_player_init(void)
     }
 
     audio_player_config_t config = { .mute_fn = audio_mute_function,
-                                     .write_fn = bsp_extra_i2s_write,
+                                     .write_fn = (audio_player_write_fn)bsp_extra_i2s_write,
                                      .clk_set_fn = bsp_extra_codec_play_set_fs,
                                      .priority = 5
                                    };
