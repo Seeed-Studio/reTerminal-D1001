@@ -12,6 +12,7 @@
 #include "esp_log.h"
 #include "esp_check.h"
 #include "esp_timer.h"
+#include "esp_attr.h"
 #include "esp_spiffs.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_mipi_dsi.h"
@@ -1051,7 +1052,7 @@ static bool bsp_chg_error = false;
 static uint32_t chg_high_ms = 0;
 static uint32_t chg_low_ms = 0;
 
-static void charge_status_isr_handler(void* arg)
+static void IRAM_ATTR charge_status_isr_handler(void* arg)
 {
     int status = gpio_get_level(BSP_BAT_CHARGE_STATE);
     if (status) {
@@ -1184,7 +1185,8 @@ esp_err_t bsp_battery_manage_start(void)
             .pin_bit_mask = 1ULL << BSP_BAT_CHARGE_STATE,
         };
         ret = gpio_config(&int_gpio_config);
-        gpio_install_isr_service(ESP_INTR_FLAG_IRAM);
+        gpio_install_isr_service(0);
+        // do not force to run in IRAM, but compatible with ESP_INTR_FLAG_IRAM
         gpio_isr_handler_add(BSP_BAT_CHARGE_STATE, charge_status_isr_handler, (void *)BSP_BAT_CHARGE_STATE);
 
         gpio_config_t io_in_conf = {
@@ -1205,7 +1207,7 @@ esp_err_t bsp_battery_manage_start(void)
     return ESP_OK;
 }
 
-static void bsp_sdcard_detect_isr_handler(void* arg)
+static void IRAM_ATTR bsp_sdcard_detect_isr_handler(void* arg)
 {
     int status = gpio_get_level(BSP_SD_DETECT); // high: remove, low: insert
     if (status) {
@@ -1214,7 +1216,9 @@ static void bsp_sdcard_detect_isr_handler(void* arg)
         sd_card_insert = true;
     }
     if (sd_card_m_task_handle) {
-        xTaskNotifyGive(sd_card_m_task_handle);
+        BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+        vTaskNotifyGiveFromISR(sd_card_m_task_handle, &xHigherPriorityTaskWoken);
+        portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
     }
 }
 
@@ -1261,7 +1265,8 @@ esp_err_t bsp_sd_card_manage_start(bool cmd)
         .pin_bit_mask = 1ULL << BSP_SD_DETECT,
     };
     ret = gpio_config(&int_gpio_config);
-    gpio_install_isr_service(ESP_INTR_FLAG_IRAM);
+    gpio_install_isr_service(0);
+    // do not force to run in IRAM, but compatible with ESP_INTR_FLAG_IRAM
     gpio_isr_handler_add(BSP_SD_DETECT, bsp_sdcard_detect_isr_handler, (void *)BSP_SD_DETECT);
 
     if (cmd) {
