@@ -889,6 +889,7 @@ static const esp_cam_sensor_isp_info_t sc2356_isp_info[] = {
             .pclk = 84000000,
             .vts = 1250,
             .hts = 2240,
+            .tline_ns = 26667, // tline = HTS / PCLK = 2240 / 84MHz = 26.667us
             .gain_def = 0, // gain index, depend on {0x3e06, 0x3e07, 0x3e09}, since these registers are not set in format reg_list, the default values ​​are used here.
             .exp_def = 0x4dc, // depend on {0x3e00, 0x3e01, 0x3e02}, see format_reg_list to get the default value.
             .bayer_type = ESP_CAM_SENSOR_BAYER_BGGR,
@@ -900,6 +901,7 @@ static const esp_cam_sensor_isp_info_t sc2356_isp_info[] = {
             .pclk = 84000000,
             .vts = 1250,
             .hts = 2240,
+            .tline_ns = 26667, // tline = HTS / PCLK = 2240 / 84MHz = 26.667us
             .gain_def = 0, // gain index, depend on {0x3e06, 0x3e07, 0x3e09}, since these registers are not set in format reg_list, the default values ​​are used here.
             .exp_def = 0x4dc, // depend on {0x3e00, 0x3e01, 0x3e02}, see format_reg_list to get the default value.
             .bayer_type = ESP_CAM_SENSOR_BAYER_BGGR,
@@ -911,6 +913,7 @@ static const esp_cam_sensor_isp_info_t sc2356_isp_info[] = {
             .pclk = 84000000,
             .vts = 1250,
             .hts = 2240,
+            .tline_ns = 26667, // tline = HTS / PCLK = 2240 / 84MHz = 26.667us
             .gain_def = 0, // gain index, depend on {0x3e06, 0x3e07, 0x3e09}, since these registers are not set in format reg_list, the default values ​​are used here.
             .exp_def = 0x4dc, // depend on {0x3e00, 0x3e01, 0x3e02}, see format_reg_list to get the default value.
             .bayer_type = ESP_CAM_SENSOR_BAYER_BGGR,
@@ -922,6 +925,7 @@ static const esp_cam_sensor_isp_info_t sc2356_isp_info[] = {
             .pclk = 84000000,
             .vts = 1250,
             .hts = 2240,
+            .tline_ns = 26667, // tline = HTS / PCLK = 2240 / 84MHz = 26.667us
             .gain_def = 0, // gain index, depend on {0x3e06, 0x3e07, 0x3e09}, since these registers are not set in format reg_list, the default values ​​are used here.
             .exp_def = 0x4dc, // depend on {0x3e00, 0x3e01, 0x3e02}, see format_reg_list to get the default value.
             .bayer_type = ESP_CAM_SENSOR_BAYER_BGGR,
