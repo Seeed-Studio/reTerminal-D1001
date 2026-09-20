@@ -19,7 +19,7 @@ dependencies:
   espressif/esp_lvgl_port:
     public: true
     version: ^2
-  esp-sr: 2.*
+  esp-sr: ==2.5.3
   esp_codec_dev:
     public: true
     version: 1.6.*

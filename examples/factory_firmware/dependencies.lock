@@ -509,6 +509,6 @@ direct_dependencies:
 - idf
 - iot_usbh_modem
 - lvgl/lvgl
-manifest_hash: 6e762d0d4b9c76bbf7a3c43cfe0114a17688b81544f817da76190cadf048ba9a
+manifest_hash: 07701449d11e0a2ab5cfd902daf5640848ea73e2b90f717f264ae67d070c52ad
 target: esp32p4
 version: 3.0.0
