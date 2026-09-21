@@ -63,6 +63,18 @@ extern "C" void app_main(void)
     lv_display_t *display = bsp_display_start_with_config(&cfg);
     // bsp_display_rotate(display, LV_DISPLAY_ROTATION_90);
 
+    bsp_display_lock(0);
+    lv_indev_t *input_dev = bsp_display_get_input_dev();
+    if (input_dev != NULL && input_dev->driver != NULL &&
+        input_dev->driver->read_timer != NULL) {
+        lv_timer_set_period(input_dev->driver->read_timer, 10);
+    }
+    if (display != NULL && display->refr_timer != NULL) {
+        lv_timer_set_period(display->refr_timer, 10);
+    }
+    bsp_display_unlock();
+    ESP_LOGI(TAG, "Touch input poll and display refresh set to 10 ms");
+
     bsp_rgb_led_duty_set(0, 0);
     bsp_rgb_led_duty_set(1, 0);
     bsp_rgb_led_duty_set(2, 0);

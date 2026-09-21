@@ -20,4 +20,9 @@ public:
     
 private:
     static void position_change_cb(lv_event_t *e);
+    static void rate_timer_cb(lv_timer_t *timer);
+
+    lv_obj_t *rate_label_ = nullptr;
+    lv_timer_t *rate_timer_ = nullptr;
+    uint8_t rate_tick_ = 0;
 };

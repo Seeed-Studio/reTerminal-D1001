@@ -251,7 +251,7 @@ static esp_err_t esp_lcd_touch_gsl3670_exit_sleep(esp_lcd_touch_handle_t tp)
 static esp_err_t esp_lcd_touch_gsl3670_read_data(esp_lcd_touch_handle_t tp)
 {
     esp_err_t err;
-    uint8_t touch_data[24];
+    uint8_t touch_data[44];
     uint8_t touch_cnt = 0;
     uint16_t x_poit, y_poit, x2_poit, y2_poit;
 
@@ -267,6 +267,11 @@ static esp_err_t esp_lcd_touch_gsl3670_read_data(esp_lcd_touch_handle_t tp)
 
     err = touch_gsl3670_i2c_read(tp, ESP_LCD_TOUCH_GSL3670_READ_XY_REG, touch_data, 44);
     Finger_num = touch_data[0];
+    /* Clamp to a sane finger count so a glitched first byte cannot make the
+     * parsing loop below run out of bounds. */
+    if (Finger_num > MAX_FINGER_NUM) {
+        Finger_num = MAX_FINGER_NUM;
+    }
     // ESP_LOGI(TAG,"0x80 = %d",touch_data[0]);
 
     cinfo.finger_num = Finger_num;	
