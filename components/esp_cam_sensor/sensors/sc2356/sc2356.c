@@ -71,8 +71,13 @@ struct sc2356_cam {
 #define delay_ms(ms)  vTaskDelay((ms > portTICK_PERIOD_MS ? ms/ portTICK_PERIOD_MS : 1))
 #define SC2356_SUPPORT_NUM CONFIG_CAMERA_SC2356_MAX_SUPPORT
 
+/* Common timing/defaults for the four supported 30 fps modes. */
+#define SC2356_TLINE_NS          26667U
+/* The register lists initialize total gain to 8x; index 96 is 8000 in both gain maps. */
+#define SC2356_GAIN_DEF_INDEX    96U
+
 static const uint32_t s_limited_abs_gain = CONFIG_CAMERA_SC2356_ABSOLUTE_GAIN_LIMIT;
-static size_t s_limited_gain_index;
+static size_t s_limited_gain_count;
 static const uint8_t s_sc2356_exp_min = 0x08;
 static const char *TAG = "sc2356";
 
@@ -889,9 +894,9 @@ static const esp_cam_sensor_isp_info_t sc2356_isp_info[] = {
             .pclk = 84000000,
             .vts = 1250,
             .hts = 2240,
-            .tline_ns = 26667, // tline = HTS / PCLK = 2240 / 84MHz = 26.667us
-            .gain_def = 0, // gain index, depend on {0x3e06, 0x3e07, 0x3e09}, since these registers are not set in format reg_list, the default values ​​are used here.
-            .exp_def = 0x4dc, // depend on {0x3e00, 0x3e01, 0x3e02}, see format_reg_list to get the default value.
+            .tline_ns = SC2356_TLINE_NS, // HTS / PCLK = 2240 / 84MHz = 26.667 us
+            .gain_def = SC2356_GAIN_DEF_INDEX, // 8x, matching {0x3e06,0x3e07,0x3e09} = {0x00,0x80,0x07}
+            .exp_def = 0x4dc, // {0x3e00,0x3e01,0x3e02} = {0x00,0x4d,0xc0}
             .bayer_type = ESP_CAM_SENSOR_BAYER_BGGR,
         }
     },
@@ -901,9 +906,9 @@ static const esp_cam_sensor_isp_info_t sc2356_isp_info[] = {
             .pclk = 84000000,
             .vts = 1250,
             .hts = 2240,
-            .tline_ns = 26667, // tline = HTS / PCLK = 2240 / 84MHz = 26.667us
-            .gain_def = 0, // gain index, depend on {0x3e06, 0x3e07, 0x3e09}, since these registers are not set in format reg_list, the default values ​​are used here.
-            .exp_def = 0x4dc, // depend on {0x3e00, 0x3e01, 0x3e02}, see format_reg_list to get the default value.
+            .tline_ns = SC2356_TLINE_NS, // HTS / PCLK = 2240 / 84MHz = 26.667 us
+            .gain_def = SC2356_GAIN_DEF_INDEX, // 8x, matching {0x3e06,0x3e07,0x3e09} = {0x00,0x80,0x07}
+            .exp_def = 0x4dc, // {0x3e00,0x3e01,0x3e02} = {0x00,0x4d,0xc0}
             .bayer_type = ESP_CAM_SENSOR_BAYER_BGGR,
         }
     },
@@ -913,9 +918,9 @@ static const esp_cam_sensor_isp_info_t sc2356_isp_info[] = {
             .pclk = 84000000,
             .vts = 1250,
             .hts = 2240,
-            .tline_ns = 26667, // tline = HTS / PCLK = 2240 / 84MHz = 26.667us
-            .gain_def = 0, // gain index, depend on {0x3e06, 0x3e07, 0x3e09}, since these registers are not set in format reg_list, the default values ​​are used here.
-            .exp_def = 0x4dc, // depend on {0x3e00, 0x3e01, 0x3e02}, see format_reg_list to get the default value.
+            .tline_ns = SC2356_TLINE_NS, // HTS / PCLK = 2240 / 84MHz = 26.667 us
+            .gain_def = SC2356_GAIN_DEF_INDEX, // 8x, matching {0x3e06,0x3e07,0x3e09} = {0x00,0x80,0x07}
+            .exp_def = 0x4dc, // {0x3e00,0x3e01,0x3e02} = {0x00,0x4d,0xc0}
             .bayer_type = ESP_CAM_SENSOR_BAYER_BGGR,
         }
     },
@@ -925,9 +930,9 @@ static const esp_cam_sensor_isp_info_t sc2356_isp_info[] = {
             .pclk = 84000000,
             .vts = 1250,
             .hts = 2240,
-            .tline_ns = 26667, // tline = HTS / PCLK = 2240 / 84MHz = 26.667us
-            .gain_def = 0, // gain index, depend on {0x3e06, 0x3e07, 0x3e09}, since these registers are not set in format reg_list, the default values ​​are used here.
-            .exp_def = 0x4dc, // depend on {0x3e00, 0x3e01, 0x3e02}, see format_reg_list to get the default value.
+            .tline_ns = SC2356_TLINE_NS, // HTS / PCLK = 2240 / 84MHz = 26.667 us
+            .gain_def = SC2356_GAIN_DEF_INDEX, // 8x, matching {0x3e06,0x3e07,0x3e09} = {0x00,0x80,0x07}
+            .exp_def = 0x4dc, // {0x3e00,0x3e01,0x3e02} = {0x00,0x4d,0xc0}
             .bayer_type = ESP_CAM_SENSOR_BAYER_BGGR,
         }
     },
@@ -1141,6 +1146,12 @@ static esp_err_t sc2356_set_total_gain_val(esp_cam_sensor_device_t *dev, uint32_
     esp_err_t ret;
     struct sc2356_cam *cam_sc2356 = (struct sc2356_cam *)dev->priv;
 
+    size_t gain_count = s_limited_gain_count;
+    if (gain_count == 0 || gain_count > ARRAY_SIZE(sc2356_gain_map)) {
+        gain_count = ARRAY_SIZE(sc2356_gain_map);
+    }
+    u32_val = MIN(u32_val, (uint32_t)(gain_count - 1));
+
     ESP_LOGD(TAG, "dgain_fine %" PRIx8 ", dgain_coarse %" PRIx8 ", again_coarse %" PRIx8, sc2356_gain_map[u32_val].dgain_fine, sc2356_gain_map[u32_val].dgain_coarse, sc2356_gain_map[u32_val].analog_gain);
     ret = sc2356_write(dev->sccb_handle,
                        SC2356_REG_DIG_FINE_GAIN,
@@ -1177,9 +1188,10 @@ static esp_err_t sc2356_query_para_desc(esp_cam_sensor_device_t *dev, esp_cam_se
         break;
     case ESP_CAM_SENSOR_GAIN:
         qdesc->type = ESP_CAM_SENSOR_PARAM_TYPE_ENUMERATION;
-        qdesc->enumeration.count = s_limited_gain_index;
+        qdesc->enumeration.count = s_limited_gain_count;
         qdesc->enumeration.elements = sc2356_total_gain_val_map;
-        qdesc->default_value = dev->cur_format->isp_info->isp_v1_info.gain_def; // default gain index
+        qdesc->default_value = MIN(dev->cur_format->isp_info->isp_v1_info.gain_def,
+                                   (uint32_t)(s_limited_gain_count - 1));
         break;
     case ESP_CAM_SENSOR_GROUP_EXP_GAIN:
         qdesc->type = ESP_CAM_SENSOR_PARAM_TYPE_U8;
@@ -1245,8 +1257,18 @@ static esp_err_t sc2356_set_para_value(esp_cam_sensor_device_t *dev, uint32_t id
         break;
     }
     case ESP_CAM_SENSOR_GROUP_EXP_GAIN: {
-        esp_cam_sensor_gh_exp_gain_t *value = (esp_cam_sensor_gh_exp_gain_t *)arg;
-        uint32_t ori_exp = EXPOSURE_V4L2_TO_SC2356(value->exposure_us, dev->cur_format);
+        const esp_cam_sensor_gh_exp_gain_t *value = (const esp_cam_sensor_gh_exp_gain_t *)arg;
+        uint32_t ori_exp = 0;
+
+        if (value->exposure_val != 0) {
+            ori_exp = value->exposure_val;
+        } else if (value->exposure_us != 0) {
+            ori_exp = EXPOSURE_V4L2_TO_SC2356(value->exposure_us, dev->cur_format);
+        } else {
+            ret = ESP_ERR_INVALID_ARG;
+            break;
+        }
+
         ret = sc2356_write(dev->sccb_handle, SC2356_REG_GROUP_HOLD, SC2356_GROUP_HOLD_START);
         ret |= sc2356_set_exp_val(dev, ori_exp);
         ret |= sc2356_set_total_gain_val(dev, value->gain_index);
@@ -1314,7 +1336,8 @@ static esp_err_t sc2356_set_format(esp_cam_sensor_device_t *dev, const esp_cam_s
     dev->cur_format = format;
     // init para
     cam_sc2356->sc2356_para.exposure_val = dev->cur_format->isp_info->isp_v1_info.exp_def;
-    cam_sc2356->sc2356_para.gain_index = dev->cur_format->isp_info->isp_v1_info.gain_def;
+    cam_sc2356->sc2356_para.gain_index = MIN(dev->cur_format->isp_info->isp_v1_info.gain_def,
+                                             (uint32_t)(s_limited_gain_count - 1));
     cam_sc2356->sc2356_para.exposure_max = dev->cur_format->isp_info->isp_v1_info.vts - SC2356_EXP_MAX_OFFSET;
 
     return ret;
@@ -1468,7 +1491,7 @@ esp_cam_sensor_device_t *sc2356_detect(esp_cam_sensor_config_t *config)
 {
     esp_cam_sensor_device_t *dev = NULL;
     struct sc2356_cam *cam_sc2356;
-    s_limited_gain_index = ARRAY_SIZE(sc2356_total_gain_val_map);
+    s_limited_gain_count = ARRAY_SIZE(sc2356_total_gain_val_map);
     if (config == NULL) {
         return NULL;
     }
@@ -1497,10 +1520,20 @@ esp_cam_sensor_device_t *sc2356_detect(esp_cam_sensor_config_t *config)
     dev->cur_format = &sc2356_format_info[CONFIG_CAMERA_SC2356_MIPI_IF_FORMAT_INDEX_DEFAULT];
     for (size_t i = 0; i < ARRAY_SIZE(sc2356_total_gain_val_map); i++) {
         if (sc2356_total_gain_val_map[i] > s_limited_abs_gain) {
-            s_limited_gain_index = i - 1;
+            /* enumeration.count is a number of entries, not a max index */
+            s_limited_gain_count = i;
             break;
         }
     }
+    if (s_limited_gain_count == 0) {
+        /* Keep at least the minimum-gain entry available. */
+        s_limited_gain_count = 1;
+    }
+
+    cam_sc2356->sc2356_para.exposure_val = dev->cur_format->isp_info->isp_v1_info.exp_def;
+    cam_sc2356->sc2356_para.exposure_max = dev->cur_format->isp_info->isp_v1_info.vts - SC2356_EXP_MAX_OFFSET;
+    cam_sc2356->sc2356_para.gain_index = MIN(dev->cur_format->isp_info->isp_v1_info.gain_def,
+                                             (uint32_t)(s_limited_gain_count - 1));
 
     // Configure sensor power, clock, and SCCB port
     if (sc2356_power_on(dev) != ESP_OK) {
